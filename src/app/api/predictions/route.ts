@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/supabaseAdmin";
 import { currentPlayer } from "@/lib/session";
+import { getSettings } from "@/lib/recompute";
 import { isLocked, scoreGroupPrediction } from "@/lib/scoring";
 import { Match, Prediction, Result } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const { match_id } = body;
   const pick: Result | null = PICKS.includes(body.pick) ? body.pick : null;
+  const wildcard = !!body.wildcard;
   if (!match_id || !pick) return NextResponse.json({ error: "Pick home, draw, or away." }, { status: 400 });
 
   const db = admin();
@@ -25,8 +27,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This match has kicked off — picks are locked." }, { status: 423 });
   }
 
-  const prediction: Prediction = { player_id: player.id, match_id, pick, points: 0 };
-  prediction.points = scoreGroupPrediction(prediction, match as Match);
+  const settings = await getSettings();
+
+  // Enforce the wildcard budget (count usage excluding this match).
+  if (wildcard) {
+    const { data: mine } = await db
+      .from("predictions")
+      .select("match_id")
+      .eq("player_id", player.id)
+      .eq("wildcard", true)
+      .neq("match_id", match_id);
+    if ((mine ?? []).length >= settings.scoring.wildcards) {
+      return NextResponse.json(
+        { error: `No wildcards left (max ${settings.scoring.wildcards}).` },
+        { status: 409 },
+      );
+    }
+  }
+
+  const prediction: Prediction = { player_id: player.id, match_id, pick, wildcard, points: 0 };
+  prediction.points = scoreGroupPrediction(prediction, match as Match, settings.scoring);
 
   const { error } = await db
     .from("predictions")

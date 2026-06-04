@@ -31,13 +31,14 @@ export async function getTeamsMap(): Promise<Record<string, Team>> {
 }
 
 /** Recompute and persist points for every group pick on one match. */
-export async function recomputeMatch(matchId: string) {
+export async function recomputeMatch(matchId: string, scoring?: ScoringConfig) {
+  const cfg = scoring ?? (await getSettings()).scoring;
   const db = admin();
   const { data: match } = await db.from("matches").select("*").eq("id", matchId).maybeSingle();
   if (!match) return;
   const { data: preds } = await db.from("predictions").select("*").eq("match_id", matchId);
   for (const p of (preds ?? []) as Prediction[]) {
-    const pts = scoreGroupPrediction(p, match as Match);
+    const pts = scoreGroupPrediction(p, match as Match, cfg);
     if (pts !== p.points) await db.from("predictions").update({ points: pts }).eq("id", p.id);
   }
 }
@@ -56,8 +57,9 @@ export async function recomputeEntries() {
 
 /** Recompute everything (after a scoring/odds/team-progress change). */
 export async function recomputeAll() {
+  const cfg = (await getSettings()).scoring;
   const db = admin();
   const { data: matches } = await db.from("matches").select("id").eq("finished", true);
-  for (const m of matches ?? []) await recomputeMatch(m.id);
+  for (const m of matches ?? []) await recomputeMatch(m.id, cfg);
   await recomputeEntries();
 }

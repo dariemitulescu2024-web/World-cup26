@@ -59,6 +59,7 @@ create table if not exists predictions (
   player_id uuid not null references players (id) on delete cascade,
   match_id uuid not null references matches (id) on delete cascade,
   pick text not null,  -- 'home' | 'draw' | 'away'
+  wildcard boolean not null default false,  -- 5× this game if correct (max 3 per player)
   points int not null default 0,
   updated_at timestamptz not null default now(),
   unique (player_id, match_id)

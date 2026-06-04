@@ -9,6 +9,7 @@ interface Data {
   player: { id: string; name: string };
   matches: UiMatch[];
   predictions: Record<string, Prediction>;
+  wildcardsMax: number;
 }
 
 export default function PredictPage() {
@@ -28,24 +29,35 @@ export default function PredictPage() {
   }, [router]);
 
   const picked = useMemo(() => Object.keys(preds).length, [preds]);
+  const wildcardsUsed = useMemo(
+    () => Object.values(preds).filter((p) => p.wildcard).length,
+    [preds],
+  );
 
   if (err) return <p className="text-red-600">{err}</p>;
   if (!data) return <p className="text-slate-500">Loading matches…</p>;
 
   const oddsLocked = data.matches.some((m) => m.pts_home != null);
+  const wildcardsLeft = data.wildcardsMax - wildcardsUsed;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h1 className="text-2xl font-bold">Group stage — pick a winner</h1>
-        <span className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
-          <b>{picked}</b> / {data.matches.length} picked
-        </span>
+        <div className="flex gap-2 text-sm">
+          <span className="bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+            <b>{picked}</b> / {data.matches.length} picked
+          </span>
+          <span className="bg-white border border-amber-200 rounded-lg px-3 py-1.5">
+            ⭐ <b>{wildcardsLeft}</b> / {data.wildcardsMax} wildcards
+          </span>
+        </div>
       </div>
 
       <p className="text-sm text-slate-500 mb-2">
         Tap <b>Home / Draw / Away</b> for each match — it saves instantly. Points if correct =
-        the value on the button (longer odds = more points). Picks lock at kickoff.
+        the value on the button (longer odds = more points). Flag up to <b>3 games as ⭐ 5× wildcards</b>
+        for a big boost. Picks lock at kickoff.
       </p>
       <p className="text-sm text-slate-500 mb-5">
         Don&apos;t forget your <Link href="/bonus" className="text-pitch font-semibold underline">knockout picks</Link> —
@@ -65,6 +77,7 @@ export default function PredictPage() {
             key={m.id}
             match={m}
             pred={preds[m.id]}
+            wildcardsLeft={wildcardsLeft}
             onSaved={(p) => setPreds((prev) => ({ ...prev, [m.id]: p }))}
           />
         ))}

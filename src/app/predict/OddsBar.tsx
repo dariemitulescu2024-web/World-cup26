@@ -22,9 +22,9 @@ export default function OddsBar({
   return (
     <div>
       <div className="flex h-2.5 rounded-full overflow-hidden">
-        <div className="bg-sky-500" style={{ width: `${pct(home)}%` }} title={`${homeTeam} win`} />
-        <div className="bg-slate-300" style={{ width: `${pct(draw)}%` }} title="Draw" />
-        <div className="bg-rose-500" style={{ width: `${pct(away)}%` }} title={`${awayTeam} win`} />
+        <div className="bg-green-500" style={{ width: `${pct(home)}%` }} title={`${homeTeam} win`} />
+        <div className="bg-slate-400" style={{ width: `${pct(draw)}%` }} title="Draw" />
+        <div className="bg-red-500" style={{ width: `${pct(away)}%` }} title={`${awayTeam} win`} />
       </div>
       <div className="flex justify-between text-[11px] text-slate-500 mt-1">
         <span>{homeTeam} {pct(home)}%</span>

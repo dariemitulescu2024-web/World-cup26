@@ -10,11 +10,12 @@ export function norm(s: string | null | undefined): string {
     .trim();
 }
 
-/** Point value of an outcome from its probability: round(1/p), floored at the min. */
+/** Point value of a correct W/D/L pick: a flat base + the odds value round(1/p). */
 export function pointValue(prob: number | null | undefined, cfg: ScoringConfig): number {
+  const base = cfg.groupBase ?? 0;
   const min = cfg.groupMinPoints ?? 1;
-  if (!prob || prob <= 0) return min;
-  return Math.max(min, Math.round(1 / prob));
+  if (!prob || prob <= 0) return base + min;
+  return base + Math.max(min, Math.round(1 / prob));
 }
 
 /** Actual W/D/L result of a finished match, or null. */
@@ -25,20 +26,26 @@ export function matchResult(m: Match): Result | null {
   return "draw";
 }
 
-/** Points a group W/D/L pick earns (0 until the match is final). */
-export function scoreGroupPrediction(pred: Prediction, match: Match): number {
-  const result = matchResult(match);
-  if (!result) return 0;
-  if (pred.pick !== result) return 0;
+function outcomeValue(pred: Prediction, match: Match): number {
   const v = pred.pick === "home" ? match.pts_home : pred.pick === "away" ? match.pts_away : match.pts_draw;
   return v ?? 0;
 }
 
+function wildcardFactor(pred: Prediction, cfg: ScoringConfig): number {
+  return pred.wildcard ? cfg.wildcardMultiplier ?? 5 : 1;
+}
+
+/** Points a group W/D/L pick earns (0 until the match is final). 5× if it's a wildcard. */
+export function scoreGroupPrediction(pred: Prediction, match: Match, cfg: ScoringConfig): number {
+  const result = matchResult(match);
+  if (!result || pred.pick !== result) return 0;
+  return outcomeValue(pred, match) * wildcardFactor(pred, cfg);
+}
+
 /** Best still-achievable points for a single group pick (assumes it hits if unplayed). */
-export function groupPickMax(pred: Prediction, match: Match): number {
-  if (matchResult(match)) return scoreGroupPrediction(pred, match);
-  const v = pred.pick === "home" ? match.pts_home : pred.pick === "away" ? match.pts_away : match.pts_draw;
-  return v ?? 0;
+export function groupPickMax(pred: Prediction, match: Match, cfg: ScoringConfig): number {
+  if (matchResult(match)) return scoreGroupPrediction(pred, match, cfg);
+  return outcomeValue(pred, match) * wildcardFactor(pred, cfg);
 }
 
 /** Realized points for a ride team: value × multiplier of the furthest round reached. */

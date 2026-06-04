@@ -49,6 +49,7 @@ export interface Prediction {
   player_id: string;
   match_id: string;
   pick: Result;
+  wildcard: boolean; // 5× this game if correct (max 3 per player)
   points: number;
 }
 
@@ -69,19 +70,25 @@ export interface Player {
 }
 
 export interface ScoringConfig {
-  groupMinPoints: number; // floor for a correct W/D/L pick
+  groupBase: number; // flat points added to every correct W/D/L pick (keeps favorites viable)
+  groupMinPoints: number; // floor for the odds portion of a correct W/D/L pick
   rideMultiplier: Record<RideRound, number>; // value × this, by furthest round
   rideTeams: number; // how many teams you pick (3)
   goldenBoot: number; // flat bonus for a correct Golden Boot pick
   championBonus: number; // flat bonus added to the team's value for a correct champion pick
+  wildcards: number; // how many group games you can flag as 5×
+  wildcardMultiplier: number; // multiplier on a correct wildcard game
 }
 
 export const DEFAULT_SCORING: ScoringConfig = {
+  groupBase: 3,
   groupMinPoints: 1,
   rideMultiplier: { group: 0, r32: 0, r16: 1, qf: 2, sf: 3, final: 4, champion: 5 },
   rideTeams: 3,
   goldenBoot: 30,
   championBonus: 50,
+  wildcards: 3,
+  wildcardMultiplier: 5,
 };
 
 export const STAGE_LABELS: Record<Stage, string> = {

@@ -25,7 +25,7 @@ export async function GET() {
     const m = matchById[p.match_id];
     if (!m) continue;
     gPts[p.player_id] = (gPts[p.player_id] ?? 0) + (p.points ?? 0);
-    gMax[p.player_id] = (gMax[p.player_id] ?? 0) + groupPickMax(p, m);
+    gMax[p.player_id] = (gMax[p.player_id] ?? 0) + groupPickMax(p, m, settings.scoring);
     counts[p.player_id] = (counts[p.player_id] ?? 0) + 1;
   }
 

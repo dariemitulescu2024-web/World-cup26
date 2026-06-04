@@ -37,15 +37,15 @@ const teamsRec = (...ts: Team[]): Record<string, Team> => {
 };
 
 const mkPred = (over: Partial<Prediction>): Prediction => ({
-  player_id: "p", match_id: "m", pick: "home", points: 0, ...over,
+  player_id: "p", match_id: "m", pick: "home", wildcard: false, points: 0, ...over,
 });
 
-test("pointValue = round(1/p), floored at min", () => {
-  assert.equal(pointValue(0.5, cfg), 2);
-  assert.equal(pointValue(0.2, cfg), 5);
-  assert.equal(pointValue(0.0067, cfg), 149); // ~Canada
-  assert.equal(pointValue(0.95, cfg), 1); // heavy favorite floored at 1
-  assert.equal(pointValue(0, cfg), 1);
+test("pointValue = groupBase + round(1/p) (favorites stay viable)", () => {
+  assert.equal(pointValue(0.5, cfg), 5); // 3 + 2
+  assert.equal(pointValue(0.2, cfg), 8); // 3 + 5
+  assert.equal(pointValue(0.0067, cfg), 152); // 3 + 149
+  assert.equal(pointValue(0.95, cfg), 4); // heavy favorite: 3 + 1
+  assert.equal(pointValue(0, cfg), 4);
 });
 
 test("matchResult derives W/D/L", () => {
@@ -57,13 +57,20 @@ test("matchResult derives W/D/L", () => {
 
 test("group pick: correct earns the outcome's value, wrong earns 0", () => {
   const match = mkMatch({ home_goals: 0, away_goals: 2 }); // away win, pts_away 5
-  assert.equal(scoreGroupPrediction(mkPred({ pick: "away" }), match), 5);
-  assert.equal(scoreGroupPrediction(mkPred({ pick: "home" }), match), 0);
+  assert.equal(scoreGroupPrediction(mkPred({ pick: "away" }), match, cfg), 5);
+  assert.equal(scoreGroupPrediction(mkPred({ pick: "home" }), match, cfg), 0);
 });
 
-test("group pick max assumes an unplayed pick hits", () => {
+test("wildcard game scores 5×", () => {
+  const match = mkMatch({ home_goals: 0, away_goals: 2 }); // away win, pts_away 5
+  assert.equal(scoreGroupPrediction(mkPred({ pick: "away", wildcard: true }), match, cfg), 25);
+  assert.equal(scoreGroupPrediction(mkPred({ pick: "home", wildcard: true }), match, cfg), 0); // wrong, still 0
+});
+
+test("group pick max assumes an unplayed pick hits (and respects wildcard)", () => {
   const match = mkMatch({ finished: false, home_goals: null, away_goals: null });
-  assert.equal(groupPickMax(mkPred({ pick: "away" }), match), 5);
+  assert.equal(groupPickMax(mkPred({ pick: "away" }), match, cfg), 5);
+  assert.equal(groupPickMax(mkPred({ pick: "away", wildcard: true }), match, cfg), 25);
 });
 
 test("ride team: value × furthest-round multiplier", () => {

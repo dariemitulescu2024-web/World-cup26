@@ -54,6 +54,7 @@ export default function Nav() {
           </>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {link("/about", "About")}
           {link("/admin", "Admin")}
           {name ? (
             <button
