@@ -1,66 +1,64 @@
-// Shared domain types for the World Cup prediction pool.
+// Shared domain types for the World Cup prediction pool (v2 — odds-based scoring).
 
 export type Stage =
   | "group"
-  | "r32" // Round of 32
-  | "r16" // Round of 16
-  | "qf" // Quarter-final
-  | "sf" // Semi-final
-  | "third" // Third-place playoff
+  | "r32"
+  | "r16"
+  | "qf"
+  | "sf"
+  | "third"
   | "final";
 
-export type Side = "home" | "away" | "none"; // "none" = nobody scored (0-0)
+export type Result = "home" | "draw" | "away";
 
-// Which team advanced from a knockout tie (after ET/penalties if needed).
-export type Advancing = "home" | "away" | null;
-
-export type Wildcard = "none" | "double";
+// How far a team gets in the knockouts (drives the "ride" multiplier).
+export type RideRound = "group" | "r32" | "r16" | "qf" | "sf" | "final" | "champion";
 
 export interface Match {
   id: string;
   match_no: number;
   stage: Stage;
-  group_label: string | null; // "A".."L" for group stage, null otherwise
-  home_team: string; // team name or a placeholder like "Winner Group A"
+  group_label: string | null;
+  home_team: string;
   away_team: string;
-  kickoff: string; // ISO timestamp
+  kickoff: string;
   venue: string | null;
-  // Actual result (filled in by admin)
   finished: boolean;
   home_goals: number | null;
   away_goals: number | null;
-  first_team: Side | null; // which side scored first
-  advancing: Advancing; // knockout only: which side advanced (ET/penalties count)
-  // Cached odds (de-vigged win/draw/loss probabilities, 0..1)
+  // Locked (point-in-time) de-vigged probabilities + the resulting point values.
   prob_home: number | null;
   prob_draw: number | null;
   prob_away: number | null;
+  pts_home: number | null; // round(1/prob_home), min 1
+  pts_draw: number | null;
+  pts_away: number | null;
   odds_updated_at: string | null;
+}
+
+export interface Team {
+  name: string;
+  champ_prob: number | null; // locked championship probability
+  champ_base: number; // round(1/champ_prob) — the team's value
+  furthest: RideRound; // deepest round reached so far
+  eliminated: boolean; // true once knocked out (or champion)
 }
 
 export interface Prediction {
   id?: string;
   player_id: string;
   match_id: string;
-  pred_home: number;
-  pred_away: number;
-  pred_first_team: Side | null;
-  wildcard: Wildcard;
-  points: number; // computed
+  pick: Result;
+  points: number;
 }
 
-export interface BonusPrediction {
+// Pre-tournament picks (locked at the first kickoff).
+export interface Entry {
   player_id: string;
-  champion: string | null;
-  golden_boot: string | null;
-  semifinalists: string[]; // up to 4 team names
-  points: number; // computed
-}
-
-export interface BonusResults {
-  champion: string | null;
-  golden_boot: string | null;
-  semifinalists: string[];
+  champion: string | null; // team name
+  golden_boot: string | null; // player name
+  ride_teams: string[]; // up to 3 team names (may include the champion pick)
+  points: number;
 }
 
 export interface Player {
@@ -71,36 +69,17 @@ export interface Player {
 }
 
 export interface ScoringConfig {
-  // Group / base tiers
-  exact: number;
-  resultAndOneTeam: number;
-  resultOnly: number;
-  oneTeamOnly: number;
-  // Per-match bonus
-  firstTeam: number; // first team to score
-  // Knockout round multipliers (keyed by stage)
-  roundMultiplier: Record<Exclude<Stage, "group">, number>;
-  // Wildcards (group stage only)
-  groupWildcards: number; // count of 2x match wildcards
-  groupWildcardMultiplier: number; // 2
-  // Tournament bonuses (pre-tournament long-shot picks — weighted to matter)
-  championBonus: number;
-  goldenBootBonus: number;
-  semifinalistsBonus: number; // awarded PER correctly-picked semifinalist
+  groupMinPoints: number; // floor for a correct W/D/L pick
+  rideMultiplier: Record<RideRound, number>; // value × this, by furthest round
+  rideTeams: number; // how many teams you pick (3)
+  goldenBoot: number; // flat bonus for a correct Golden Boot pick
 }
 
 export const DEFAULT_SCORING: ScoringConfig = {
-  exact: 5,
-  resultAndOneTeam: 3,
-  resultOnly: 2,
-  oneTeamOnly: 1,
-  firstTeam: 1,
-  roundMultiplier: { r32: 1, r16: 2, qf: 3, sf: 4, third: 2, final: 5 },
-  groupWildcards: 3,
-  groupWildcardMultiplier: 2,
-  championBonus: 75,
-  goldenBootBonus: 25,
-  semifinalistsBonus: 10, // per correct semifinalist (max 40 for all four)
+  groupMinPoints: 1,
+  rideMultiplier: { group: 0, r32: 0, r16: 1, qf: 2, sf: 3, final: 4, champion: 5 },
+  rideTeams: 3,
+  goldenBoot: 30,
 };
 
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -111,4 +90,14 @@ export const STAGE_LABELS: Record<Stage, string> = {
   sf: "Semi-final",
   third: "Third-place playoff",
   final: "Final",
+};
+
+export const RIDE_ROUND_LABELS: Record<RideRound, string> = {
+  group: "Group stage",
+  r32: "Round of 32",
+  r16: "Round of 16",
+  qf: "Quarter-final",
+  sf: "Semi-final",
+  final: "Final",
+  champion: "Champion",
 };

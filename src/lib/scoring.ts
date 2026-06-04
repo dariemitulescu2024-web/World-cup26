@@ -1,125 +1,110 @@
-// Pure scoring engine. No I/O — fully unit-testable.
-import type {
-  BonusPrediction,
-  BonusResults,
-  Match,
-  Prediction,
-  ScoringConfig,
-  Stage,
-} from "./types";
+// Pure scoring engine (v2 — odds-based). No I/O; unit-testable.
+import type { Entry, Match, Prediction, Result, ScoringConfig, Team } from "./types";
 
-/** Normalize a player/team name for forgiving comparison. */
 export function norm(s: string | null | undefined): string {
   return (s ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip diacritics
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
-function sign(n: number): number {
-  return n > 0 ? 1 : n < 0 ? -1 : 0;
+/** Point value of an outcome from its probability: round(1/p), floored at the min. */
+export function pointValue(prob: number | null | undefined, cfg: ScoringConfig): number {
+  const min = cfg.groupMinPoints ?? 1;
+  if (!prob || prob <= 0) return min;
+  return Math.max(min, Math.round(1 / prob));
 }
 
-/**
- * Tiered base score for a predicted scoreline vs the actual scoreline.
- * Tiers are mutually exclusive (no stacking) and strictly ordered by
- * correctness, so being *less* correct can never pay more.
- */
-export function baseScore(
-  ph: number,
-  pa: number,
-  ah: number,
-  aa: number,
-  cfg: ScoringConfig,
-): number {
-  if (ph === ah && pa === aa) return cfg.exact;
-  const resultRight = sign(ph - pa) === sign(ah - aa);
-  const oneTeamRight = ph === ah || pa === aa;
-  if (resultRight && oneTeamRight) return cfg.resultAndOneTeam;
-  if (resultRight) return cfg.resultOnly;
-  if (oneTeamRight) return cfg.oneTeamOnly;
-  return 0;
+/** Actual W/D/L result of a finished match, or null. */
+export function matchResult(m: Match): Result | null {
+  if (!m.finished || m.home_goals == null || m.away_goals == null) return null;
+  if (m.home_goals > m.away_goals) return "home";
+  if (m.home_goals < m.away_goals) return "away";
+  return "draw";
 }
 
-function firstTeamCorrect(pred: Prediction, match: Match): boolean {
-  if (pred.pred_first_team == null || match.first_team == null) return false;
-  return pred.pred_first_team === match.first_team;
+/** Points a group W/D/L pick earns (0 until the match is final). */
+export function scoreGroupPrediction(pred: Prediction, match: Match): number {
+  const result = matchResult(match);
+  if (!result) return 0;
+  if (pred.pick !== result) return 0;
+  const v = pred.pick === "home" ? match.pts_home : pred.pick === "away" ? match.pts_away : match.pts_draw;
+  return v ?? 0;
 }
 
-function roundMultiplier(stage: Stage, cfg: ScoringConfig): number {
-  if (stage === "group") return 1;
-  return cfg.roundMultiplier[stage] ?? 1;
+/** Best still-achievable points for a single group pick (assumes it hits if unplayed). */
+export function groupPickMax(pred: Prediction, match: Match): number {
+  if (matchResult(match)) return scoreGroupPrediction(pred, match);
+  const v = pred.pick === "home" ? match.pts_home : pred.pick === "away" ? match.pts_away : match.pts_draw;
+  return v ?? 0;
 }
 
-/**
- * Knockout base score. Exact scoreline + one-team are judged on the 90-minute
- * score; the win/loss "result" tier follows who ADVANCES (ET/penalties count).
- * A predicted draw earns no result credit (a knockout always has a winner).
- */
-function knockoutBase(ph: number, pa: number, ah: number, aa: number, advancing: Match["advancing"], cfg: ScoringConfig): number {
-  if (ph === ah && pa === aa) return cfg.exact;
-  const predWinner = ph > pa ? "home" : pa > ph ? "away" : null;
-  const resultRight = predWinner !== null && advancing === predWinner;
-  const oneTeamRight = ph === ah || pa === aa;
-  if (resultRight && oneTeamRight) return cfg.resultAndOneTeam;
-  if (resultRight) return cfg.resultOnly;
-  if (oneTeamRight) return cfg.oneTeamOnly;
-  return 0;
+/** Realized points for a ride team: value × multiplier of the furthest round reached. */
+export function rideTeamPoints(team: Team, cfg: ScoringConfig): number {
+  return team.champ_base * (cfg.rideMultiplier?.[team.furthest] ?? 0);
 }
 
-/**
- * Points a single prediction earns once the match has an actual result.
- * Returns 0 if the match isn't finished or is missing a result.
- */
-export function scorePrediction(
-  pred: Prediction,
-  match: Match,
-  cfg: ScoringConfig,
-): number {
-  if (!match.finished || match.home_goals == null || match.away_goals == null) {
-    return 0;
-  }
-  const ft = firstTeamCorrect(pred, match) ? cfg.firstTeam : 0;
-
-  if (match.stage === "group") {
-    const base = baseScore(pred.pred_home, pred.pred_away, match.home_goals, match.away_goals, cfg);
-    let total = base + ft;
-    if (pred.wildcard === "double") total *= cfg.groupWildcardMultiplier;
-    return total;
-  }
-
-  // Knockout: result by advancement, whole match scaled by the round multiplier.
-  const base = knockoutBase(pred.pred_home, pred.pred_away, match.home_goals, match.away_goals, match.advancing, cfg);
-  return (base + ft) * roundMultiplier(match.stage, cfg);
+/** Best still-achievable points for a ride team (base × 5 if still alive). */
+export function rideTeamMax(team: Team, cfg: ScoringConfig): number {
+  if (team.eliminated) return rideTeamPoints(team, cfg);
+  return team.champ_base * (cfg.rideMultiplier?.champion ?? 5);
 }
 
-/** Tournament-wide bonus prediction scoring. */
-export function scoreBonus(
-  pred: BonusPrediction,
-  results: BonusResults,
+function teamOf(teams: Record<string, Team>, name: string | null | undefined): Team | undefined {
+  return name ? teams[norm(name)] : undefined;
+}
+
+/** Realized points for a player's pre-tournament entry. */
+export function scoreEntry(
+  entry: Entry,
+  teams: Record<string, Team>,
+  goldenBootResult: string | null,
   cfg: ScoringConfig,
 ): number {
   let total = 0;
-  if (results.champion && norm(pred.champion) === norm(results.champion)) {
-    total += cfg.championBonus;
+  // Champion: correct only once a team is actually crowned.
+  const champ = teamOf(teams, entry.champion);
+  if (champ && champ.furthest === "champion") total += champ.champ_base;
+  // Golden Boot: flat bonus.
+  if (goldenBootResult && norm(entry.golden_boot) === norm(goldenBootResult)) {
+    total += cfg.goldenBoot ?? 30;
   }
-  if (results.golden_boot && norm(pred.golden_boot) === norm(results.golden_boot)) {
-    total += cfg.goldenBootBonus;
-  }
-  // Per correctly-picked semifinalist (order-independent, partial credit).
-  const actual = new Set((results.semifinalists ?? []).map(norm).filter(Boolean));
-  if (actual.size > 0) {
-    const guessed = new Set((pred.semifinalists ?? []).map(norm).filter(Boolean));
-    let correct = 0;
-    for (const t of guessed) if (actual.has(t)) correct++;
-    total += correct * cfg.semifinalistsBonus;
+  // Ride: each picked team's realized value.
+  for (const name of entry.ride_teams ?? []) {
+    const t = teamOf(teams, name);
+    if (t) total += rideTeamPoints(t, cfg);
   }
   return total;
 }
 
-/** A match is locked for predictions once kickoff has passed. */
+/** Best still-achievable points for an entry (champion alive, ride teams could win, GB if undecided). */
+export function maxEntry(
+  entry: Entry,
+  teams: Record<string, Team>,
+  goldenBootResult: string | null,
+  cfg: ScoringConfig,
+): number {
+  let total = 0;
+  const champ = teamOf(teams, entry.champion);
+  if (champ) {
+    if (champ.furthest === "champion") total += champ.champ_base;
+    else if (!champ.eliminated) total += champ.champ_base; // could still win
+  }
+  if (goldenBootResult) {
+    if (norm(entry.golden_boot) === norm(goldenBootResult)) total += cfg.goldenBoot;
+  } else if (entry.golden_boot) {
+    total += cfg.goldenBoot ?? 30; // undecided — assume it hits
+  }
+  for (const name of entry.ride_teams ?? []) {
+    const t = teamOf(teams, name);
+    if (t) total += rideTeamMax(t, cfg);
+  }
+  return total;
+}
+
+/** A match is locked for picks once kickoff has passed. */
 export function isLocked(kickoff: string, now: Date = new Date()): boolean {
   return new Date(kickoff).getTime() <= now.getTime();
 }

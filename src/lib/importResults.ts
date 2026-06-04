@@ -1,44 +1,22 @@
-// Auto-import match results using Gemini + Google Search grounding.
-// Reliable for scorelines; first-scorer/first-team are best-effort. NEVER
-// overwrites a match an admin has already marked finished, so manual edits win.
+// Auto-import via Gemini + Google Search grounding: group match scores and
+// knockout team progress. Never overwrites a match an admin already entered.
 import { admin } from "./supabaseAdmin";
-import { recomputeMatch } from "./recompute";
+import { recomputeEntries, recomputeMatch } from "./recompute";
 import { norm } from "./scoring";
-import type { Advancing, Match, Side } from "./types";
+import { ALL_TEAMS } from "./teams";
+import type { Match, RideRound } from "./types";
 
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const TOURNAMENT = process.env.TOURNAMENT_NAME || "2026 FIFA World Cup";
-
-// Only look at matches whose kickoff was at least this long ago (a match plus
-// stoppage/halftime comfortably fits, so we don't query mid-game).
 const SETTLE_MS = 2.5 * 60 * 60 * 1000;
-const MAX_PER_RUN = 24; // bound work + API usage per invocation
-const CONCURRENCY = 5; // keep under Gemini free-tier rate limits
+const MAX_PER_RUN = 24;
+const CONCURRENCY = 5;
+const ROUNDS: RideRound[] = ["group", "r32", "r16", "qf", "sf", "final", "champion"];
 
-export interface ResultData {
-  finished: boolean;
-  home_goals: number | null;
-  away_goals: number | null;
-  first_team: Side | null;
-  advancing: Advancing; // knockout only
-}
-
-/** Ask Gemini (with web grounding) for a single match's result. */
-export async function fetchMatchResult(match: Match): Promise<ResultData | null> {
+async function gemini(prompt: string): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  const date = new Date(match.kickoff).toISOString().slice(0, 10);
-  const knockout = match.stage !== "group";
-  const prompt = `You are a precise sports-data extractor. Using up-to-date web sources, report the result of this ${TOURNAMENT} match.
-Match: ${match.home_team} vs ${match.away_team}, played around ${date}.
-Rules:
-- If the match was NOT completed yet, or you cannot confirm a final result from reliable sources, return {"finished": false}.
-- Report the score at the END OF 90 MINUTES (regulation)${knockout ? ", excluding extra time and penalty shootouts" : ""}.
-- "first_team": the exact name "${match.home_team}" or "${match.away_team}" of whichever scored the first goal, or "none" if it was 0-0. For an own goal, the team it counted FOR.${knockout ? `\n- "advanced": the exact name "${match.home_team}" or "${match.away_team}" of the team that advanced to the next round (after extra time / penalties if needed).` : ""}
-Respond with ONLY a JSON object with keys: finished (boolean), home_goals (int), away_goals (int), first_team (string)${knockout ? ', advanced (string)' : ''}. No markdown.`;
-
-  let json: unknown;
   try {
     const r = await fetch(`${GEMINI}/${MODEL}:generateContent?key=${key}`, {
       method: "POST",
@@ -46,90 +24,106 @@ Respond with ONLY a JSON object with keys: finished (boolean), home_goals (int),
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }),
     });
     if (!r.ok) return null;
-    json = await r.json();
+    const j = await r.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (j?.candidates?.[0]?.content?.parts ?? []).map((p: any) => p?.text ?? "").join("");
   } catch {
     return null;
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parts = (json as any)?.candidates?.[0]?.content?.parts ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const text: string = parts.map((p: any) => p?.text ?? "").join("");
-  const match_json = text.match(/\{[\s\S]*\}/);
-  if (!match_json) return null;
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(match_json[0]);
-  } catch {
-    return null;
-  }
-
-  if (!parsed.finished) {
-    return { finished: false, home_goals: null, away_goals: null, first_team: null, advancing: null };
-  }
-  const hg = Number(parsed.home_goals);
-  const ag = Number(parsed.away_goals);
-  if (!Number.isInteger(hg) || !Number.isInteger(ag) || hg < 0 || ag < 0 || hg > 30 || ag > 30) {
-    return null;
-  }
-
-  let side: Side | null = null;
-  if (hg + ag === 0) {
-    side = "none";
-  } else if (typeof parsed.first_team === "string") {
-    const n = norm(parsed.first_team);
-    if (n === "none") side = "none";
-    else if (n === norm(match.home_team)) side = "home";
-    else if (n === norm(match.away_team)) side = "away";
-  }
-  let advancing: Advancing = null;
-  if (knockout && typeof parsed.advanced === "string") {
-    const n = norm(parsed.advanced);
-    if (n === norm(match.home_team)) advancing = "home";
-    else if (n === norm(match.away_team)) advancing = "away";
-  }
-
-  return { finished: true, home_goals: hg, away_goals: ag, first_team: side, advancing };
 }
 
-/** Find recently-played, not-yet-entered matches and fill them in. */
-export async function importResults(): Promise<{ checked: number; updated: number; details: string[] }> {
-  if (!process.env.GEMINI_API_KEY) {
-    return { checked: 0, updated: 0, details: ["GEMINI_API_KEY not set"] };
+function parseJson(text: string | null): Record<string, unknown> | null {
+  if (!text) return null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    return JSON.parse(m[0]);
+  } catch {
+    return null;
   }
+}
+
+/** Final score of one group match (or {finished:false}). */
+async function fetchScore(match: Match): Promise<{ home_goals: number; away_goals: number } | null> {
+  const date = new Date(match.kickoff).toISOString().slice(0, 10);
+  const text = await gemini(
+    `Using up-to-date web sources, report the final score of this ${TOURNAMENT} group match.
+Match: ${match.home_team} vs ${match.away_team}, played around ${date}.
+If it has NOT finished or you cannot confirm a final score, return {"finished": false}.
+Respond with ONLY JSON: {finished (bool), home_goals (int), away_goals (int)}. No markdown.`,
+  );
+  const p = parseJson(text);
+  if (!p || !p.finished) return null;
+  const hg = Number(p.home_goals);
+  const ag = Number(p.away_goals);
+  if (!Number.isInteger(hg) || !Number.isInteger(ag) || hg < 0 || ag < 0) return null;
+  return { home_goals: hg, away_goals: ag };
+}
+
+/** Import finished group scores. */
+export async function importGroupResults(): Promise<{ checked: number; updated: number }> {
   const db = admin();
   const cutoff = Date.now() - SETTLE_MS;
-  const { data } = await db.from("matches").select("*").eq("finished", false);
+  const { data } = await db.from("matches").select("*").eq("stage", "group").eq("finished", false);
   const candidates = ((data ?? []) as Match[])
     .filter((m) => new Date(m.kickoff).getTime() < cutoff)
     .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())
     .slice(0, MAX_PER_RUN);
 
-  const details: string[] = [];
   let updated = 0;
-
   for (let i = 0; i < candidates.length; i += CONCURRENCY) {
     const batch = candidates.slice(i, i + CONCURRENCY);
     const results = await Promise.all(
-      batch.map((m) => fetchMatchResult(m).then((r) => ({ m, r })).catch(() => ({ m, r: null }))),
+      batch.map((m) => fetchScore(m).then((r) => ({ m, r })).catch(() => ({ m, r: null }))),
     );
     for (const { m, r } of results) {
-      if (!r || !r.finished) continue;
+      if (!r) continue;
       await db
         .from("matches")
-        .update({
-          finished: true,
-          home_goals: r.home_goals,
-          away_goals: r.away_goals,
-          first_team: r.first_team,
-          advancing: r.advancing,
-        })
+        .update({ finished: true, home_goals: r.home_goals, away_goals: r.away_goals })
         .eq("id", m.id)
-        .eq("finished", false); // guard: never clobber a manual entry
+        .eq("finished", false);
       await recomputeMatch(m.id);
       updated++;
-      details.push(`${m.home_team} ${r.home_goals}-${r.away_goals} ${m.away_team}`);
     }
   }
-  return { checked: candidates.length, updated, details };
+  return { checked: candidates.length, updated };
+}
+
+/** Update each team's furthest knockout round + eliminated status. */
+export async function importTeamProgress(): Promise<{ updated: number }> {
+  const text = await gemini(
+    `Using up-to-date web sources, report each team's progress in the ${TOURNAMENT}.
+For EACH of these teams give the furthest round it has reached so far (one of: "group", "r32", "r16", "qf", "sf", "final", "champion") and whether it has been eliminated (true/false). If the knockout stage has not started, every team is "group" and eliminated=false. Only state what you can confirm; if unsure for a team, use "group" and false.
+Teams: ${ALL_TEAMS.join(", ")}.
+Respond with ONLY a JSON object mapping each exact team name to {"furthest": <round>, "eliminated": <bool>}. No markdown.`,
+  );
+  const parsed = parseJson(text);
+  if (!parsed) return { updated: 0 };
+  const db = admin();
+  const { data: teams } = await db.from("teams").select("name, furthest, eliminated");
+  let updated = 0;
+  for (const t of teams ?? []) {
+    // find the parsed entry by normalized name
+    const entry = Object.entries(parsed).find(([k]) => norm(k) === norm(t.name))?.[1] as
+      | { furthest?: string; eliminated?: boolean }
+      | undefined;
+    if (!entry) continue;
+    const furthest = ROUNDS.includes(entry.furthest as RideRound) ? (entry.furthest as RideRound) : "group";
+    const eliminated = !!entry.eliminated;
+    if (furthest !== t.furthest || eliminated !== t.eliminated) {
+      await db.from("teams").update({ furthest, eliminated }).eq("name", t.name);
+      updated++;
+    }
+  }
+  if (updated > 0) await recomputeEntries();
+  return { updated };
+}
+
+/** Full import run: group scores + team progress. */
+export async function importResults(): Promise<{ checked: number; updated: number; teamsUpdated: number }> {
+  if (!process.env.GEMINI_API_KEY) return { checked: 0, updated: 0, teamsUpdated: 0 };
+  const g = await importGroupResults();
+  const t = await importTeamProgress();
+  return { checked: g.checked, updated: g.updated, teamsUpdated: t.updated };
 }

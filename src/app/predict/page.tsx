@@ -1,17 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Prediction, ScoringConfig, Stage, STAGE_LABELS } from "@/lib/types";
+import Link from "next/link";
+import { Prediction } from "@/lib/types";
 import MatchCard, { UiMatch } from "./MatchCard";
-
-const STAGE_ORDER: Stage[] = ["group", "r32", "r16", "qf", "sf", "third", "final"];
 
 interface Data {
   player: { id: string; name: string };
   matches: UiMatch[];
   predictions: Record<string, Prediction>;
-  scoring: ScoringConfig;
-  wildcards: { doublesUsed: number; doublesMax: number };
 }
 
 export default function PredictPage() {
@@ -23,83 +20,55 @@ export default function PredictPage() {
   useEffect(() => {
     fetch("/api/predict-data")
       .then(async (r) => {
-        if (r.status === 401) {
-          router.push("/");
-          return null;
-        }
+        if (r.status === 401) { router.push("/"); return null; }
         return r.json();
       })
-      .then((d: Data | null) => {
-        if (!d) return;
-        setData(d);
-        setPreds(d.predictions);
-      })
+      .then((d: Data | null) => { if (!d) return; setData(d); setPreds(d.predictions); })
       .catch(() => setErr("Could not load matches."));
   }, [router]);
 
-  const stageById = useMemo(() => {
-    const m: Record<string, Stage> = {};
-    data?.matches.forEach((x) => (m[x.id] = x.stage));
-    return m;
-  }, [data]);
-
-  const doublesUsed = useMemo(() => {
-    let d = 0;
-    for (const p of Object.values(preds)) {
-      if (p.wildcard === "double" && stageById[p.match_id] === "group") d++;
-    }
-    return d;
-  }, [preds, stageById]);
+  const picked = useMemo(() => Object.keys(preds).length, [preds]);
 
   if (err) return <p className="text-red-600">{err}</p>;
   if (!data) return <p className="text-slate-500">Loading matches…</p>;
 
-  const doublesLeft = data.wildcards.doublesMax - doublesUsed;
+  const oddsLocked = data.matches.some((m) => m.pts_home != null);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h1 className="text-2xl font-bold">Your predictions</h1>
-        <div className="flex gap-2 text-sm">
-          <span className="bg-white border border-slate-200 rounded-lg px-3 py-1.5">
-            🃏 Double wildcards: <b>{doublesLeft}</b> / {data.wildcards.doublesMax} left
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h1 className="text-2xl font-bold">Group stage — pick a winner</h1>
+        <span className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+          <b>{picked}</b> / {data.matches.length} picked
+        </span>
       </div>
 
-      <p className="text-sm text-slate-500 mb-4">
-        Exact score <b>5</b> · right result <b>2</b> (+1 if you also nail one team&apos;s goals) ·
-        first team to score <b>+1</b>. Knockouts scale ×1→×5 by round and the result follows who
-        advances. Picks lock at kickoff.
+      <p className="text-sm text-slate-500 mb-2">
+        Tap <b>Home / Draw / Away</b> for each match — it saves instantly. Points if correct =
+        the value on the button (longer odds = more points). Picks lock at kickoff.
+      </p>
+      <p className="text-sm text-slate-500 mb-5">
+        Don&apos;t forget your <Link href="/bonus" className="text-pitch font-semibold underline">knockout picks</Link> —
+        champion, Golden Boot, and 3 teams to ride to the final.
       </p>
 
-      {STAGE_ORDER.map((stage) => {
-        const list = data.matches.filter((m) => m.stage === stage);
-        if (list.length === 0) return null;
-        return (
-          <section key={stage} className="mb-8">
-            <h2 className="text-lg font-bold text-pitch border-b border-slate-200 pb-1 mb-3">
-              {STAGE_LABELS[stage]}
-              {stage !== "group" && (
-                <span className="text-xs font-normal text-slate-400 ml-2">
-                  ×{data.scoring.roundMultiplier[stage as Exclude<Stage, "group">]} points
-                </span>
-              )}
-            </h2>
-            <div className="grid gap-3">
-              {list.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  pred={preds[m.id]}
-                  doublesLeft={doublesLeft}
-                  onSaved={(p) => setPreds((prev) => ({ ...prev, [m.id]: p }))}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {!oddsLocked && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm mb-4">
+          Point values aren&apos;t locked yet — the organizer needs to lock the odds. You can still pick;
+          values will appear once locked.
+        </div>
+      )}
+
+      <div className="grid gap-2">
+        {data.matches.map((m) => (
+          <MatchCard
+            key={m.id}
+            match={m}
+            pred={preds[m.id]}
+            onSaved={(p) => setPreds((prev) => ({ ...prev, [m.id]: p }))}
+          />
+        ))}
+      </div>
     </div>
   );
 }

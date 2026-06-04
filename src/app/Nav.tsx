@@ -49,7 +49,7 @@ export default function Nav() {
         {name && (
           <>
             {link("/predict", "Predict")}
-            {link("/bonus", "Bonus picks")}
+            {link("/bonus", "Knockout picks")}
             {link("/leaderboard", "Leaderboard")}
           </>
         )}

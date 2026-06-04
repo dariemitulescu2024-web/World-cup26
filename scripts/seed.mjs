@@ -41,17 +41,10 @@ const GROUPS = {
 };
 
 const SCORING = {
-  exact: 5,
-  resultAndOneTeam: 3,
-  resultOnly: 2,
-  oneTeamOnly: 1,
-  firstTeam: 1,
-  roundMultiplier: { r32: 1, r16: 2, qf: 3, sf: 4, third: 2, final: 5 },
-  groupWildcards: 3,
-  groupWildcardMultiplier: 2,
-  championBonus: 75,
-  goldenBootBonus: 25,
-  semifinalistsBonus: 10, // per correct semifinalist
+  groupMinPoints: 1,
+  rideMultiplier: { group: 0, r32: 0, r16: 1, qf: 2, sf: 3, final: 4, champion: 5 },
+  rideTeams: 3,
+  goldenBoot: 30,
 };
 
 // kickoff helper: a Date at the given month/day/hour UTC in 2026.

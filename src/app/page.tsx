@@ -69,7 +69,7 @@ export default function Home() {
             Make predictions
           </Link>
           <Link href="/bonus" className="bg-white border border-slate-300 rounded-lg px-6 py-3 font-semibold hover:bg-slate-50">
-            Bonus picks
+            Knockout picks
           </Link>
           <Link href="/leaderboard" className="bg-white border border-slate-300 rounded-lg px-6 py-3 font-semibold hover:bg-slate-50">
             Leaderboard
@@ -101,7 +101,7 @@ export default function Home() {
         <p className="tracking-[0.25em] text-pitch font-semibold text-sm">IMPERIAL CAPITAL</p>
         <h1 className="text-3xl font-bold mt-3">World Cup 2026 Pool</h1>
         <p className="text-slate-600 mt-2">
-          Predict every match, play your wildcards, and top the Imperial Capital leaderboard.
+          Pick a winner for every match, ride your favourites through the knockouts, and top the Imperial Capital leaderboard.
         </p>
       </div>
 
