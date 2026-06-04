@@ -87,8 +87,8 @@ test("entry: champion + golden boot + ride, with champion/ride double-up allowed
     player_id: "p", champion: "France", golden_boot: "Mbappe",
     ride_teams: ["France", "Argentina", "Canada"], points: 0,
   };
-  // champion France +5; golden boot correct +30; ride: France 25 + Argentina 24 + Canada 0 = 49
-  assert.equal(scoreEntry(entry, teams, "Mbappe", cfg), 5 + 30 + 49);
+  // champion France (50 bonus + 5 value); golden boot +30; ride: France 25 + Argentina 24 + Canada 0 = 49
+  assert.equal(scoreEntry(entry, teams, "Mbappe", cfg), 55 + 30 + 49);
 });
 
 test("entry max: undecided GB counts, champion alive counts, ride teams could win", () => {
@@ -100,8 +100,8 @@ test("entry max: undecided GB counts, champion alive counts, ride teams could wi
     player_id: "p", champion: "Spain", golden_boot: "Yamal",
     ride_teams: ["Spain", "Brazil"], points: 0,
   };
-  // champion Spain alive +6; GB undecided +30; ride: Spain max 6×5=30, Brazil out 7×1=7
-  assert.equal(maxEntry(entry, teams, null, cfg), 6 + 30 + 30 + 7);
+  // champion Spain alive (50 + 6); GB undecided +30; ride: Spain max 6×5=30, Brazil out 7×1=7
+  assert.equal(maxEntry(entry, teams, null, cfg), 56 + 30 + 30 + 7);
 });
 
 test("norm: forgiving matching", () => {

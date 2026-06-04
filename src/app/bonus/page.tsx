@@ -75,7 +75,10 @@ export default function PicksPage() {
       <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
         <div>
           <label className="block text-sm font-medium mb-1">🏆 Champion</label>
-          <p className="text-xs text-slate-500 mb-2">If your pick wins it all, you score its full value{champion && baseOf[champion] != null ? ` (${baseOf[champion]} pts)` : ""}.</p>
+          <p className="text-xs text-slate-500 mb-2">
+            If your pick wins it all, you score a <b>50-pt bonus + the team&apos;s value</b>
+            {champion && baseOf[champion] != null ? ` → ${50 + baseOf[champion]} pts` : ""}.
+          </p>
           {teamSelect(champion, setChampion)}
         </div>
 

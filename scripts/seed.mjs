@@ -45,6 +45,7 @@ const SCORING = {
   rideMultiplier: { group: 0, r32: 0, r16: 1, qf: 2, sf: 3, final: 4, champion: 5 },
   rideTeams: 3,
   goldenBoot: 30,
+  championBonus: 50,
 };
 
 // kickoff helper: a Date at the given month/day/hour UTC in 2026.

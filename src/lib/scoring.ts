@@ -64,9 +64,9 @@ export function scoreEntry(
   cfg: ScoringConfig,
 ): number {
   let total = 0;
-  // Champion: correct only once a team is actually crowned.
+  // Champion: flat bonus + the team's value, once a team is actually crowned.
   const champ = teamOf(teams, entry.champion);
-  if (champ && champ.furthest === "champion") total += champ.champ_base;
+  if (champ && champ.furthest === "champion") total += (cfg.championBonus ?? 0) + champ.champ_base;
   // Golden Boot: flat bonus.
   if (goldenBootResult && norm(entry.golden_boot) === norm(goldenBootResult)) {
     total += cfg.goldenBoot ?? 30;
@@ -88,9 +88,8 @@ export function maxEntry(
 ): number {
   let total = 0;
   const champ = teamOf(teams, entry.champion);
-  if (champ) {
-    if (champ.furthest === "champion") total += champ.champ_base;
-    else if (!champ.eliminated) total += champ.champ_base; // could still win
+  if (champ && (champ.furthest === "champion" || !champ.eliminated)) {
+    total += (cfg.championBonus ?? 0) + champ.champ_base; // crowned, or could still win
   }
   if (goldenBootResult) {
     if (norm(entry.golden_boot) === norm(goldenBootResult)) total += cfg.goldenBoot;

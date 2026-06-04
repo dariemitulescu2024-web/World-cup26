@@ -73,6 +73,7 @@ export interface ScoringConfig {
   rideMultiplier: Record<RideRound, number>; // value × this, by furthest round
   rideTeams: number; // how many teams you pick (3)
   goldenBoot: number; // flat bonus for a correct Golden Boot pick
+  championBonus: number; // flat bonus added to the team's value for a correct champion pick
 }
 
 export const DEFAULT_SCORING: ScoringConfig = {
@@ -80,6 +81,7 @@ export const DEFAULT_SCORING: ScoringConfig = {
   rideMultiplier: { group: 0, r32: 0, r16: 1, qf: 2, sf: 3, final: 4, champion: 5 },
   rideTeams: 3,
   goldenBoot: 30,
+  championBonus: 50,
 };
 
 export const STAGE_LABELS: Record<Stage, string> = {
