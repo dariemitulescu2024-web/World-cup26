@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Match, Prediction, Result } from "@/lib/types";
 import { matchResult } from "@/lib/scoring";
 import Flag from "@/app/Flag";
+import OddsBar from "./OddsBar";
 
 export type UiMatch = Match & { locked: boolean };
 
@@ -104,6 +105,17 @@ export default function MatchCard({
         )}
       </div>
       <div className="flex gap-2">{(["home", "draw", "away"] as Result[]).map(btn)}</div>
+      {match.prob_home != null && (
+        <div className="mt-2.5">
+          <OddsBar
+            home={match.prob_home}
+            draw={match.prob_draw}
+            away={match.prob_away}
+            homeTeam={match.home_team}
+            awayTeam={match.away_team}
+          />
+        </div>
+      )}
       {err && <p className="text-red-600 text-xs mt-1">{err}</p>}
     </div>
   );

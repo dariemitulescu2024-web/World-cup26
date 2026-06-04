@@ -88,51 +88,51 @@ export async function lockOdds(): Promise<{ matches: number; teams: number; note
       if (!match) continue;
       const probHome = direct ? ph : pa;
       const probAway = direct ? pa : ph;
-      await db.from("matches").update({
+      const { error } = await db.from("matches").update({
         prob_home: probHome, prob_draw: pd, prob_away: probAway,
         pts_home: pointValue(probHome, cfg), pts_draw: pointValue(pd, cfg), pts_away: pointValue(probAway, cfg),
         odds_updated_at: new Date().toISOString(),
       }).eq("id", match.id);
-      matchesUpdated++;
+      if (!error) matchesUpdated++;
     }
   }
 
   // ---- Championship outrights ---------------------------------------------
-  const champProb: Record<string, number> = {};
+  // A team's value = its raw decimal title odds (the bookmaker's price), averaged
+  // across books. NOT de-vigged: "inverse of the odds" == the decimal price, so a
+  // ~20% favorite ≈ 5, a longshot at +15000 ≈ 150. Keeps underdogs rewarding but sane.
+  const avgOdds: Record<string, number> = {};
   const winner = await fetchEvents(WINNER_SPORT, "outrights");
   if (winner) {
-    // Average each team's de-vigged probability across bookmakers.
     const sums: Record<string, number> = {};
     const counts: Record<string, number> = {};
     for (const ev of winner) {
       for (const bk of ev.bookmakers ?? []) {
         const mkt = bk.markets?.find((m) => m.key === "outrights");
         if (!mkt) continue;
-        const implied: Record<string, number> = {};
-        let total = 0;
         for (const o of mkt.outcomes) {
-          const p = o.price > 0 ? 1 / o.price : 0;
-          implied[canon(o.name)] = p;
-          total += p;
-        }
-        if (total <= 0) continue;
-        for (const [name, p] of Object.entries(implied)) {
-          sums[name] = (sums[name] ?? 0) + p / total; // de-vig within this book
-          counts[name] = (counts[name] ?? 0) + 1;
+          if (o.price > 0) {
+            const n = canon(o.name);
+            sums[n] = (sums[n] ?? 0) + o.price;
+            counts[n] = (counts[n] ?? 0) + 1;
+          }
         }
       }
     }
-    for (const name of Object.keys(sums)) champProb[name] = sums[name] / counts[name];
+    for (const n of Object.keys(sums)) avgOdds[n] = sums[n] / counts[n];
   }
 
   // Seed all 48 teams; teams missing from the winner market get a longshot fallback.
+  // Cap the value so one fluke minnow can't dwarf the whole pool ("balanced").
+  const CAP = Number(process.env.TEAM_VALUE_CAP || 150);
   let teamsUpserted = 0;
   for (const team of ALL_TEAMS) {
-    const p = champProb[canon(team)] ?? null;
-    const base = p && p > 0 ? Math.max(2, Math.round(1 / p)) : 200;
+    const odds = avgOdds[canon(team)] ?? null;
+    const base = Math.min(CAP, odds && odds > 0 ? Math.max(2, Math.round(odds)) : CAP);
+    const champ_prob = odds && odds > 0 ? 1 / odds : null;
     const { error } = await db
       .from("teams")
-      .upsert({ name: team, champ_prob: p, champ_base: base }, { onConflict: "name" });
+      .upsert({ name: team, champ_prob, champ_base: base }, { onConflict: "name" });
     if (!error) teamsUpserted++;
   }
 
