@@ -60,9 +60,9 @@ export default function MatchCard({
     const isActual = actual === r;
     let cls = "bg-white border-slate-300 hover:bg-slate-50";
     if (match.finished) {
-      if (selected && isActual) cls = "bg-pitch text-white border-pitch";
-      else if (selected) cls = "bg-rose-50 border-rose-300 text-rose-700";
-      else if (isActual) cls = "border-pitch/40";
+      if (selected && isActual) cls = "bg-green-50 border-green-400 text-green-700"; // your correct pick
+      else if (selected) cls = "bg-rose-50 border-rose-300 text-rose-700"; // your wrong pick
+      else if (isActual) cls = "border-green-400 text-green-700"; // the actual result, unpicked
     } else if (selected) {
       cls = "bg-pitch text-white border-pitch";
     }
