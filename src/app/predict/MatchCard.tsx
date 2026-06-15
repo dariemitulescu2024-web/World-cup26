@@ -59,10 +59,17 @@ export default function MatchCard({
     const selected = pick === r;
     const isActual = actual === r;
     let cls = "bg-white border-slate-300 hover:bg-slate-50";
+    let caption: string | null = null; // shown when the match is final
     if (match.finished) {
-      if (selected && isActual) cls = "bg-green-50 border-green-400 text-green-700"; // your correct pick
-      else if (selected) cls = "bg-rose-50 border-rose-300 text-rose-700"; // your wrong pick
-      else if (isActual) cls = "border-green-400 text-green-700"; // the actual result, unpicked
+      if (isActual) {
+        cls = "bg-green-50 border-green-500 text-green-800"; // the winning outcome
+        caption = selected ? "✓ Your pick" : "✓ Winner";
+      } else if (selected) {
+        cls = "bg-rose-50 border-rose-400 text-rose-700"; // your pick, but it lost
+        caption = "✗ Your pick";
+      } else {
+        cls = "bg-white border-slate-200 text-slate-400 opacity-70";
+      }
     } else if (selected) {
       cls = "bg-pitch text-white border-pitch";
     }
@@ -75,8 +82,8 @@ export default function MatchCard({
           <span className="truncate">{r === "draw" ? "Draw" : labels[r]}</span>
           {r === "away" && <Flag team={match.away_team} className="w-5" />}
         </span>
-        <span className={`block text-xs ${selected && !match.finished ? "text-white/80" : "text-slate-500"}`}>
-          {v == null ? "—" : `${v * mult} pt${v * mult === 1 ? "" : "s"}`}
+        <span className={`block text-xs font-semibold ${selected && !match.finished ? "text-white/80" : "text-current opacity-90"}`}>
+          {match.finished ? (caption ?? " ") : v == null ? "—" : `${v * mult} pt${v * mult === 1 ? "" : "s"}`}
         </span>
       </button>
     );
