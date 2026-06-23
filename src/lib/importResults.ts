@@ -93,8 +93,12 @@ export async function importGroupResults(): Promise<{ checked: number; updated: 
 /** Update each team's furthest knockout round + eliminated status. */
 export async function importTeamProgress(): Promise<{ updated: number }> {
   const text = await gemini(
-    `Using up-to-date web sources, report each team's progress in the ${TOURNAMENT}.
-For EACH of these teams give the furthest round it has reached so far (one of: "group", "r32", "r16", "qf", "sf", "final", "champion") and whether it has been eliminated (true/false). If the knockout stage has not started, every team is "group" and eliminated=false. Only state what you can confirm; if unsure for a team, use "group" and false.
+    `Using up-to-date web sources, report each team's status in the ${TOURNAMENT} as of now.
+For EACH team give:
+- "furthest": the furthest round it has reached so far — "group", "r32", "r16", "qf", "sf", "final", or "champion".
+- "eliminated": true if the team is OUT of the tournament — this INCLUDES teams already knocked out OR mathematically unable to advance from the group stage — and false if it is still alive (still in the group with a chance, or still active in the knockouts).
+During the group stage: a team still able to advance is {"furthest":"group","eliminated":false}; a team already out in the group stage is {"furthest":"group","eliminated":true}.
+Only set eliminated=true if you can confirm the team is out; if unsure, use false.
 Teams: ${ALL_TEAMS.join(", ")}.
 Respond with ONLY a JSON object mapping each exact team name to {"furthest": <round>, "eliminated": <bool>}. No markdown.`,
   );
