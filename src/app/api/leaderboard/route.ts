@@ -61,11 +61,13 @@ export async function GET() {
     .map((pl) => {
       const points = (gPts[pl.id] ?? 0) + (ePts[pl.id] ?? 0);
       const max = (gMax[pl.id] ?? 0) + (eMax[pl.id] ?? 0);
+      const c = correct[pl.id] ?? 0;
       return {
         name: pl.name,
         points,
-        correct: correct[pl.id] ?? 0,
+        correct: c,
         wildcardsHit: wildHit[pl.id] ?? 0,
+        avgPerCorrect: c > 0 ? Math.round((gPts[pl.id] ?? 0) / c) : 0, // group pts ÷ correct picks
         max,
         predictions: counts[pl.id] ?? 0,
       };
