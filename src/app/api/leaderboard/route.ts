@@ -34,13 +34,16 @@ export async function GET() {
   const gPts: Record<string, number> = {};
   const gMax: Record<string, number> = {};
   const counts: Record<string, number> = {};
+  const correct: Record<string, number> = {};
   for (const p of predsRaw) {
     const m = matchById[p.match_id];
     if (!m) continue;
     gPts[p.player_id] = (gPts[p.player_id] ?? 0) + (p.points ?? 0);
     gMax[p.player_id] = (gMax[p.player_id] ?? 0) + groupPickMax(p, m, settings.scoring);
     counts[p.player_id] = (counts[p.player_id] ?? 0) + 1;
+    if ((p.points ?? 0) > 0) correct[p.player_id] = (correct[p.player_id] ?? 0) + 1; // a finished, correct pick scores > 0
   }
+  const groupGames = (matchesRaw ?? []).length;
 
   const ePts: Record<string, number> = {};
   const eMax: Record<string, number> = {};
@@ -53,9 +56,15 @@ export async function GET() {
     .map((pl) => {
       const points = (gPts[pl.id] ?? 0) + (ePts[pl.id] ?? 0);
       const max = (gMax[pl.id] ?? 0) + (eMax[pl.id] ?? 0);
-      return { name: pl.name, points, max, predictions: counts[pl.id] ?? 0 };
+      return {
+        name: pl.name,
+        points,
+        correct: correct[pl.id] ?? 0,
+        max,
+        predictions: counts[pl.id] ?? 0,
+      };
     })
     .sort((a, b) => b.points - a.points || b.max - a.max);
 
-  return NextResponse.json({ rows });
+  return NextResponse.json({ rows, groupGames });
 }

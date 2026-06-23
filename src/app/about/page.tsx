@@ -88,6 +88,17 @@ export default function AboutPage() {
             <Row label="Out early">A team knocked out before the Round of 16 → <b>0</b>.</Row>
             <Row label="Double-up">Ride France <i>and</i> name them champion; they win → 30 + 56 = <b>86</b>.</Row>
           </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-1">
+            <p className="text-sm text-slate-700">
+              <b className="text-amber-700">💡 The points are in the underdogs.</b> Spain (value 6) tops
+              out at <b>30</b> — and only if it wins it all. A 150-value dark horse banks <b>300</b> just
+              for reaching the quarters. <b>Ride longshots that could go on a run, not safe favorites.</b>
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Still fair: win the title and every team&apos;s worth the same in expectation — the edge is
+              in the earlier rounds, where a longshot&apos;s big value pays off for a likelier deep run.
+            </p>
+          </div>
         </div>
       </section>
 
