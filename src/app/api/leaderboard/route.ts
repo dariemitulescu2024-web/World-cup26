@@ -67,7 +67,7 @@ export async function GET() {
         points,
         correct: c,
         wildcardsHit: wildHit[pl.id] ?? 0,
-        avgPerCorrect: c > 0 ? Math.round((gPts[pl.id] ?? 0) / c) : 0, // group pts ÷ correct picks
+        avgPerCorrect: c > 0 ? (gPts[pl.id] ?? 0) / c : 0, // group pts ÷ correct picks (formatted to 1dp in UI)
         max,
         predictions: counts[pl.id] ?? 0,
       };

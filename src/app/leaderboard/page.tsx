@@ -57,7 +57,7 @@ export default function LeaderboardPage() {
                   <td className="px-3 py-2.5 text-right text-pitch font-bold">{r.points}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap">{r.correct} / {groupGames}</td>
                   <td className="px-3 py-2.5 text-right text-amber-600 whitespace-nowrap">{r.wildcardsHit} / {wildcardsMax}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{r.avgPerCorrect}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{r.avgPerCorrect.toFixed(1)}</td>
                   <td className="px-3 py-2.5 text-right text-slate-500">{r.max}</td>
                 </tr>
               ))}
