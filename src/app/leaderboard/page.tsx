@@ -1,16 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 
-interface Row { name: string; points: number; correct: number; max: number; predictions: number }
+interface Row { name: string; points: number; correct: number; wildcardsHit: number; max: number; predictions: number }
 
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [groupGames, setGroupGames] = useState(72);
+  const [wildcardsMax, setWildcardsMax] = useState(3);
 
   useEffect(() => {
     fetch("/api/leaderboard")
       .then((r) => r.json())
-      .then((d) => { setRows(d.rows ?? []); if (d.groupGames) setGroupGames(d.groupGames); })
+      .then((d) => {
+        setRows(d.rows ?? []);
+        if (d.groupGames) setGroupGames(d.groupGames);
+        if (d.wildcardsMax) setWildcardsMax(d.wildcardsMax);
+      })
       .catch(() => setRows([]));
   }, []);
 
@@ -21,7 +26,7 @@ export default function LeaderboardPage() {
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-1">Leaderboard</h1>
       <p className="text-sm text-slate-500 mb-4">
-        <b>Points</b> = locked in so far. <b>Correct</b> = group games you&apos;ve called right.
+        <b>Points</b> = locked in so far. <b>Correct</b> = group games called right. <b>⭐</b> = wildcards hit.
         <b> Max</b> = your ceiling if every remaining pick hits — a high Max means you&apos;re backing underdogs. 🚀
       </p>
       {rows.length === 0 ? (
@@ -35,6 +40,7 @@ export default function LeaderboardPage() {
                 <th className="text-left px-3 py-2">Player</th>
                 <th className="text-right px-3 py-2">Points</th>
                 <th className="text-right px-3 py-2 whitespace-nowrap">Correct</th>
+                <th className="text-right px-3 py-2 whitespace-nowrap">⭐</th>
                 <th className="text-right px-3 py-2">Max</th>
               </tr>
             </thead>
@@ -48,6 +54,7 @@ export default function LeaderboardPage() {
                   </td>
                   <td className="px-3 py-2.5 text-right text-pitch font-bold">{r.points}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600 whitespace-nowrap">{r.correct} / {groupGames}</td>
+                  <td className="px-3 py-2.5 text-right text-amber-600 whitespace-nowrap">{r.wildcardsHit} / {wildcardsMax}</td>
                   <td className="px-3 py-2.5 text-right text-slate-500">{r.max}</td>
                 </tr>
               ))}

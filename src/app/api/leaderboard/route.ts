@@ -35,15 +35,20 @@ export async function GET() {
   const gMax: Record<string, number> = {};
   const counts: Record<string, number> = {};
   const correct: Record<string, number> = {};
+  const wildHit: Record<string, number> = {};
   for (const p of predsRaw) {
     const m = matchById[p.match_id];
     if (!m) continue;
     gPts[p.player_id] = (gPts[p.player_id] ?? 0) + (p.points ?? 0);
     gMax[p.player_id] = (gMax[p.player_id] ?? 0) + groupPickMax(p, m, settings.scoring);
     counts[p.player_id] = (counts[p.player_id] ?? 0) + 1;
-    if ((p.points ?? 0) > 0) correct[p.player_id] = (correct[p.player_id] ?? 0) + 1; // a finished, correct pick scores > 0
+    if ((p.points ?? 0) > 0) {
+      correct[p.player_id] = (correct[p.player_id] ?? 0) + 1; // finished, correct pick scores > 0
+      if (p.wildcard) wildHit[p.player_id] = (wildHit[p.player_id] ?? 0) + 1; // a wildcard that landed
+    }
   }
   const groupGames = (matchesRaw ?? []).length;
+  const wildcardsMax = settings.scoring.wildcards ?? 3;
 
   const ePts: Record<string, number> = {};
   const eMax: Record<string, number> = {};
@@ -60,11 +65,12 @@ export async function GET() {
         name: pl.name,
         points,
         correct: correct[pl.id] ?? 0,
+        wildcardsHit: wildHit[pl.id] ?? 0,
         max,
         predictions: counts[pl.id] ?? 0,
       };
     })
     .sort((a, b) => b.points - a.points || b.max - a.max);
 
-  return NextResponse.json({ rows, groupGames });
+  return NextResponse.json({ rows, groupGames, wildcardsMax });
 }
