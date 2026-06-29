@@ -108,7 +108,7 @@ export default function LeaderboardPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
