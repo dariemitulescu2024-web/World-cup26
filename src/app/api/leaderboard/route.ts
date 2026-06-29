@@ -52,9 +52,11 @@ export async function GET() {
 
   const ePts: Record<string, number> = {};
   const eMax: Record<string, number> = {};
+  const entryById: Record<string, Entry> = {};
   for (const e of entriesRaw) {
     ePts[e.player_id] = e.points ?? 0;
     eMax[e.player_id] = maxEntry(e, teams, settings.golden_boot_result, settings.scoring);
+    entryById[e.player_id] = e;
   }
 
   const rows = (players ?? [])
@@ -62,6 +64,7 @@ export async function GET() {
       const points = (gPts[pl.id] ?? 0) + (ePts[pl.id] ?? 0);
       const max = (gMax[pl.id] ?? 0) + (eMax[pl.id] ?? 0);
       const c = correct[pl.id] ?? 0;
+      const e = entryById[pl.id];
       return {
         name: pl.name,
         points,
@@ -70,6 +73,10 @@ export async function GET() {
         avgPerCorrect: c > 0 ? Math.round(((gPts[pl.id] ?? 0) / c) * 10) / 10 : 0, // group pts ÷ correct picks, 1dp
         max,
         predictions: counts[pl.id] ?? 0,
+        // Knockout picks (locked at tournament start, so safe to reveal)
+        champion: e?.champion ?? null,
+        rideTeams: e?.ride_teams ?? [],
+        goldenBoot: e?.golden_boot ?? null,
       };
     })
     .sort((a, b) => b.points - a.points || b.max - a.max);
