@@ -84,5 +84,11 @@ export async function GET() {
   const teamValues: Record<string, number> = {};
   for (const t of Object.values(teams)) teamValues[t.name] = t.champ_base;
 
-  return NextResponse.json({ rows, groupGames, wildcardsMax, teamValues });
+  return NextResponse.json({
+    rows,
+    groupGames,
+    wildcardsMax,
+    teamValues,
+    championBonus: settings.scoring.championBonus ?? 50,
+  });
 }

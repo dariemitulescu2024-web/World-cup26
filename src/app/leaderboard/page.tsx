@@ -20,6 +20,7 @@ export default function LeaderboardPage() {
   const [groupGames, setGroupGames] = useState(72);
   const [wildcardsMax, setWildcardsMax] = useState(3);
   const [teamValues, setTeamValues] = useState<Record<string, number>>({});
+  const [championBonus, setChampionBonus] = useState(50);
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function LeaderboardPage() {
         if (d.groupGames) setGroupGames(d.groupGames);
         if (d.wildcardsMax) setWildcardsMax(d.wildcardsMax);
         if (d.teamValues) setTeamValues(d.teamValues);
+        if (d.championBonus != null) setChampionBonus(d.championBonus);
       })
       .catch(() => setRows([]));
   }, []);
@@ -37,10 +39,12 @@ export default function LeaderboardPage() {
   if (!rows) return <p className="text-slate-500">Loading leaderboard…</p>;
   const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`);
 
-  const teamTag = (t: string) => (
+  const teamTag = (t: string, champion = false) => (
     <span key={t} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-0.5">
       <Flag team={t} className="w-4" /> {t}
-      {teamValues[t] != null && <span className="text-slate-400">({teamValues[t]})</span>}
+      {teamValues[t] != null && (
+        <span className="text-slate-400">({champion ? `${championBonus} + ${teamValues[t]}` : teamValues[t]})</span>
+      )}
     </span>
   );
 
@@ -95,7 +99,7 @@ export default function LeaderboardPage() {
                           <div className="flex flex-col gap-2 text-xs text-slate-600">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="uppercase tracking-wide text-slate-400 w-24 shrink-0">🏆 Champion</span>
-                              {r.champion ? teamTag(r.champion) : <span className="text-slate-400">—</span>}
+                              {r.champion ? teamTag(r.champion, true) : <span className="text-slate-400">—</span>}
                             </div>
                             <div className="flex items-start gap-2 flex-wrap">
                               <span className="uppercase tracking-wide text-slate-400 w-24 shrink-0">🎟️ Ride</span>
