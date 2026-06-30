@@ -104,7 +104,7 @@ export default function LeaderboardPage() {
                             <div className="flex items-start gap-2 flex-wrap">
                               <span className="uppercase tracking-wide text-slate-400 w-24 shrink-0">🎟️ Ride</span>
                               <span className="flex flex-wrap gap-1.5">
-                                {r.rideTeams.length ? r.rideTeams.map(teamTag) : <span className="text-slate-400">—</span>}
+                                {r.rideTeams.length ? r.rideTeams.map((t) => teamTag(t)) : <span className="text-slate-400">—</span>}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
