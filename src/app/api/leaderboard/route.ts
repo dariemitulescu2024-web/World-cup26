@@ -81,5 +81,8 @@ export async function GET() {
     })
     .sort((a, b) => b.points - a.points || b.max - a.max);
 
-  return NextResponse.json({ rows, groupGames, wildcardsMax });
+  const teamValues: Record<string, number> = {};
+  for (const t of Object.values(teams)) teamValues[t.name] = t.champ_base;
+
+  return NextResponse.json({ rows, groupGames, wildcardsMax, teamValues });
 }

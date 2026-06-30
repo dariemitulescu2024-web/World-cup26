@@ -19,6 +19,7 @@ export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [groupGames, setGroupGames] = useState(72);
   const [wildcardsMax, setWildcardsMax] = useState(3);
+  const [teamValues, setTeamValues] = useState<Record<string, number>>({});
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function LeaderboardPage() {
         setRows(d.rows ?? []);
         if (d.groupGames) setGroupGames(d.groupGames);
         if (d.wildcardsMax) setWildcardsMax(d.wildcardsMax);
+        if (d.teamValues) setTeamValues(d.teamValues);
       })
       .catch(() => setRows([]));
   }, []);
@@ -38,6 +40,7 @@ export default function LeaderboardPage() {
   const teamTag = (t: string) => (
     <span key={t} className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-md px-1.5 py-0.5">
       <Flag team={t} className="w-4" /> {t}
+      {teamValues[t] != null && <span className="text-slate-400">({teamValues[t]})</span>}
     </span>
   );
 
